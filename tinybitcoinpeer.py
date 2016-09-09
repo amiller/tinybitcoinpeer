@@ -1,6 +1,6 @@
-#! python2.7
-#
+#!/usr/bin/env python
 # tinybitcoinpeer.py
+#
 # A toy bitcoin node in Python. Connects to a random testnet
 # node, shakes hands, reacts to pings, and asks for pongs.
 # - Andrew Miller https://soc1024.com/
