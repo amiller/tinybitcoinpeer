@@ -50,6 +50,7 @@ import bitcoin
 from bitcoin.messages import *
 from bitcoin.net import CAddress
 import time, sys, contextlib
+from io import BufferedReader
 
 PORT = 18333
 bitcoin.SelectParams('testnet')
@@ -57,6 +58,7 @@ bitcoin.SelectParams('testnet')
 # Turn a raw stream of Bitcoin p2p socket data into a stream of 
 # parsed messages.
 def msg_stream(f):
+    f = BufferedReader(f)
     while True:
         yield MsgSerializable.stream_deserialize(f)
 
@@ -67,8 +69,8 @@ def tee_and_handle(f, msgs):
     queue = Queue() # unbounded buffer
     def _run():
         for msg in msgs:
-            sys.stdout.write('Received: %s\n' % type(msg))
-            if msg.command == 'ping':
+            print('Received:', msg.command)
+            if msg.command == b'ping':
                 print('Handler: Sending pong')
                 msg_pong(nonce=msg.nonce).stream_serialize(f)
             queue.put(msg)
@@ -135,6 +137,10 @@ def main():
             while True:
                 msg_ping().stream_serialize(cf)
                 print('Sent ping')
+
+                msg_getaddr().stream_serialize(cf)
+                print('Getaddr')
+
                 gevent.sleep(5)
         except KeyboardInterrupt: pass
 
