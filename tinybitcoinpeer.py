@@ -43,6 +43,7 @@
 #     in between. Additional threads could be given their 
 #     own tees too.
 #
+from __future__ import print_function
 import gevent, gevent.socket as socket
 from gevent.queue import Queue
 import bitcoin
@@ -59,14 +60,17 @@ def msg_stream(f):
     while True:
         yield MsgSerializable.stream_deserialize(f)
 
-def tee_and_handle(sock, msgs):
+def send(sock, msg): 
+    msg.stream_serialize(sock)
+
+def tee_and_handle(f, msgs):
     queue = Queue() # unbounded buffer
     def _run():
         for msg in msgs:
             sys.stdout.write('Received: %s\n' % type(msg))
             if msg.command == 'ping':
-                print 'Handler: Sending pong'
-                sock.send( msg_pong(nonce=msg.nonce).to_bytes() )
+                print('Handler: Sending pong')
+                msg_pong(nonce=msg.nonce).stream_serialize(f)
             queue.put(msg)
     t = gevent.Greenlet(_run)
     t.start()
@@ -79,7 +83,7 @@ def version_pkt(my_ip, their_ip):
     msg.addrTo.port = PORT
     msg.addrFrom.ip = my_ip
     msg.addrFrom.port = PORT
-    msg.strSubVer = "/tinybitcoinpeer.py/"
+    msg.strSubVer = b"/tinybitcoinpeer.py/"
     return msg
 
 def addr_pkt( str_addrs ):
@@ -96,11 +100,11 @@ def addr_pkt( str_addrs ):
 
 def main():
     with contextlib.closing(socket.socket()) as s, \
-         contextlib.closing(s.makefile("r+b", bufsize=0)) as cf:
+         contextlib.closing(s.makefile('wrb', 0)) as cf:
 
         # This will actually return a random testnet node
         their_ip = socket.gethostbyname("seed.tbtc.petertodd.org")
-        print 'Connecting to:', their_ip
+        print("Connecting to:", their_ip)
 
         my_ip = "127.0.0.1"
 
@@ -108,29 +112,29 @@ def main():
         stream = msg_stream(cf)
 
         # Send Version packet
-        s.send( version_pkt(my_ip, their_ip).to_bytes() )
-        print "Send version"
+        version_pkt(my_ip, their_ip).stream_serialize(cf)
+        print("Send version")
 
         # Receive their Version
-        their_ver = stream.next()
-        print 'Got', their_ver
+        their_ver = next(stream)
+        print('Got', their_ver)
 
         # Send Version acknolwedgement (Verack)
-        s.send( msg_verack().to_bytes() )
-        print 'Sent verack'
+        msg_verack().stream_serialize(cf)
+        print('Sent verack')
 
         # Fork off a handler, but keep a tee of the stream
-        stream = tee_and_handle(s, stream)
+        stream = tee_and_handle(cf, stream)
 
         # Get Verack
-        their_verack = stream.next()
-        print 'Got', their_verack
+        their_verack = next(stream)
+        print('Got', their_verack)
 
         # Send a ping!
         try:
             while True:
-                s.send( msg_ping().to_bytes() )
-                print 'Sent ping'
+                msg_ping().stream_serialize(cf)
+                print('Sent ping')
                 gevent.sleep(5)
         except KeyboardInterrupt: pass
 
