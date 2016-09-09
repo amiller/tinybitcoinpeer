@@ -70,12 +70,12 @@ def tee_and_handle(sock, msgs):
     t.start()
     while True: yield(queue.get())
 
-def version_pkt(client_ip, server_ip):
+def version_pkt(my_ip, their_ip):
     msg = msg_version()
     msg.nVersion = 70002
-    msg.addrTo.ip = server_ip
+    msg.addrTo.ip = their_ip
     msg.addrTo.port = PORT
-    msg.addrFrom.ip = client_ip
+    msg.addrFrom.ip = my_ip
     msg.addrFrom.port = PORT
     msg.strSubVer = "/tinybitcoinpeer.py/"
     return msg
@@ -85,7 +85,7 @@ def addr_pkt( str_addrs ):
     addrs = []
     for i in str_addrs:
         addr = CAddress()
-        addr.port = 18333
+        addr.port = PORT
         addr.nTime = int(time.time())
         addr.ip = i
         addrs.append( addr )
