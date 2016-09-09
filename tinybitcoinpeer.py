@@ -5,6 +5,8 @@
 # node, shakes hands, reacts to pings, and asks for pongs.
 # - Andrew Miller https://soc1024.com/
 #
+# Thanks to Peter Todd, Jeff Garzik, Ethan Heilman
+#
 # Dependencies: 
 # - gevent
 # - https://github.com/petertodd/python-bitcoinlib
