@@ -52,6 +52,10 @@ from bitcoin.net import CAddress
 import time, sys, contextlib
 from io import BufferedReader
 
+COLOR_RECV = '\033[95m'
+COLOR_SEND = '\033[94m'
+COLOR_ENDC = '\033[0m'
+
 PORT = 18333
 bitcoin.SelectParams('testnet')
 
@@ -61,8 +65,10 @@ def msg_stream(f):
     #f = BufferedReader(f)
     while True:
         yield MsgSerializable.stream_deserialize(f)
+        
 
 def send(sock, msg): 
+    print(COLOR_RECV, 'Sent:', COLOR_ENDC, msg.command)
     msg.stream_serialize(sock)
 
 def tee_and_handle(f, msgs):
@@ -71,7 +77,6 @@ def tee_and_handle(f, msgs):
         for msg in msgs:
             print('Received:', msg.command)
             if msg.command == b'ping':
-                print('Handler: Sending pong')
                 msg_pong(nonce=msg.nonce).stream_serialize(f)
             queue.put(msg)
     t = gevent.Greenlet(_run)
@@ -114,32 +119,27 @@ def main():
         stream = msg_stream(cf)
 
         # Send Version packet
-        version_pkt(my_ip, their_ip).stream_serialize(cf)
-        print("Send version")
+        send(cf, version_pkt(my_ip, their_ip))
 
         # Receive their Version
         their_ver = next(stream)
-        print('Got', their_ver)
+        print('Received:', their_ver)
 
         # Send Version acknolwedgement (Verack)
-        msg_verack().stream_serialize(cf)
-        print('Sent verack')
+        send(cf, msg_verack())
 
         # Fork off a handler, but keep a tee of the stream
         stream = tee_and_handle(cf, stream)
 
         # Get Verack
         their_verack = next(stream)
-        print('Got', their_verack)
 
         # Send a ping!
         try:
             while True:
-                msg_ping().stream_serialize(cf)
-                print('Sent ping')
+                send(cf, msg_ping())
 
-                msg_getaddr().stream_serialize(cf)
-                print('Getaddr')
+                send(cf, msg_getaddr())
 
                 gevent.sleep(5)
         except KeyboardInterrupt: pass
