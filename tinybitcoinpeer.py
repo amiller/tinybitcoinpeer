@@ -58,7 +58,7 @@ bitcoin.SelectParams('testnet')
 # Turn a raw stream of Bitcoin p2p socket data into a stream of 
 # parsed messages.
 def msg_stream(f):
-    f = BufferedReader(f)
+    #f = BufferedReader(f)
     while True:
         yield MsgSerializable.stream_deserialize(f)
 
