@@ -44,6 +44,7 @@
 #     own tees too.
 #
 from __future__ import print_function
+import gevent.monkey; gevent.monkey.patch_all() # needed for PySocks!
 import gevent, gevent.socket as socket
 from gevent.queue import Queue
 import bitcoin
@@ -68,16 +69,16 @@ def msg_stream(f):
         
 
 def send(sock, msg): 
-    print(COLOR_RECV, 'Sent:', COLOR_ENDC, msg.command)
+    print(COLOR_SEND, 'Sent:', COLOR_ENDC, msg.command)
     msg.stream_serialize(sock)
 
 def tee_and_handle(f, msgs):
     queue = Queue() # unbounded buffer
     def _run():
         for msg in msgs:
-            print('Received:', msg.command)
+            print(COLOR_RECV, 'Received:', COLOR_ENDC, msg.command)
             if msg.command == b'ping':
-                msg_pong(nonce=msg.nonce).stream_serialize(f)
+                send(f, msg_pong(nonce=msg.nonce))
             queue.put(msg)
     t = gevent.Greenlet(_run)
     t.start()
@@ -104,32 +105,33 @@ def addr_pkt( str_addrs ):
         addrs.append( addr )
     msg.addrs = addrs
     return msg
-
+    
 def main():
     with contextlib.closing(socket.socket()) as s, \
-         contextlib.closing(s.makefile('wrb', 0)) as cf:
+         contextlib.closing(s.makefile('wb',0)) as writer, \
+         contextlib.closing(s.makefile('rb', 0)) as reader:
 
         # This will actually return a random testnet node
-        their_ip = socket.gethostbyname("seed.tbtc.petertodd.org")
+        their_ip = socket.gethostbyname("testnet-seed.bitcoin.schildbach.de")
         print("Connecting to:", their_ip)
 
         my_ip = "127.0.0.1"
 
         s.connect( (their_ip,PORT) )
-        stream = msg_stream(cf)
+        stream = msg_stream(reader)
 
         # Send Version packet
-        send(cf, version_pkt(my_ip, their_ip))
+        send(writer, version_pkt(my_ip, their_ip))
 
         # Receive their Version
         their_ver = next(stream)
         print('Received:', their_ver)
 
         # Send Version acknolwedgement (Verack)
-        send(cf, msg_verack())
+        send(writer, msg_verack())
 
         # Fork off a handler, but keep a tee of the stream
-        stream = tee_and_handle(cf, stream)
+        stream = tee_and_handle(writer, stream)
 
         # Get Verack
         their_verack = next(stream)
@@ -137,10 +139,8 @@ def main():
         # Send a ping!
         try:
             while True:
-                send(cf, msg_ping())
-
-                send(cf, msg_getaddr())
-
+                send(writer, msg_ping())
+                send(writer, msg_getaddr())
                 gevent.sleep(5)
         except KeyboardInterrupt: pass
 
